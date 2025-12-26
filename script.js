@@ -122,7 +122,9 @@ const sampleJobs = {
             applyLink: "https://shield.ai/jobs"
         }
     ],
-    engineering: []
+    engineering: [],
+    product: [],
+    growth: []
 };
 
 // Get favicon from company website
