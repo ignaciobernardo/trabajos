@@ -29,15 +29,19 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Session configuration
+// For Vercel serverless, we need resave and saveUninitialized set to true
 app.use(session({
   secret: process.env.SESSION_SECRET || 'simplemente-trabajos-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
+  resave: true, // Required for Vercel
+  saveUninitialized: true, // Required for Vercel
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'lax', // Important for cross-site requests
+    domain: undefined // Let browser set domain automatically
+  },
+  name: 'jobs.sid' // Custom session name
 }));
 
 // Middleware
@@ -47,6 +51,49 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Initialize database (non-blocking)
+let dbInitPromise = null;
+
+function ensureDbInitialized() {
+  if (!dbInitPromise) {
+    dbInitPromise = db.init().catch(err => {
+      console.error('❌ Failed to initialize database:', err);
+      dbInitPromise = null; // Allow retry
+      throw err;
+    });
+  }
+  return dbInitPromise;
+}
+
+// Ensure all API responses are JSON
+app.use('/api', (req, res, next) => {
+  // Override res.json to ensure it always sets content-type
+  const originalJson = res.json;
+  res.json = function(data) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return originalJson.call(this, data);
+  };
+  next();
+});
+
+// Ensure DB is initialized before handling API requests
+app.use('/api', async (req, res, next) => {
+  try {
+    await ensureDbInitialized();
+    next();
+  } catch (err) {
+    console.error('Database initialization error:', err);
+    console.error('Database initialization error stack:', err.stack);
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(500).json({ 
+        error: 'error de inicialización de base de datos',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
+  }
+});
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -82,19 +129,29 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Initialize database (non-blocking)
-let dbInitPromise = null;
-
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = db.init().catch(err => {
-      console.error('❌ Failed to initialize database:', err);
-      dbInitPromise = null; // Allow retry
-      throw err;
+// Global error handler - must be last
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  console.error('Error stack:', err.stack);
+  
+  // If response already sent, delegate to default handler
+  if (res.headersSent) {
+    return next(err);
+  }
+  
+  // Always return JSON for API routes
+  if (req.path.startsWith('/api')) {
+    return res.status(err.status || 500).json({
+      error: err.message || 'error interno del servidor',
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
-  return dbInitPromise;
-}
+  
+  // For non-API routes, send error page or redirect
+  res.status(err.status || 500).json({
+    error: err.message || 'error interno del servidor'
+  });
+});
 
 // Initialize database on startup (non-blocking)
 ensureDbInitialized().then(() => {
@@ -115,17 +172,6 @@ if (!process.env.VERCEL) {
     process.exit(1);
   });
 }
-
-// Ensure DB is initialized before handling requests
-app.use(async (req, res, next) => {
-  try {
-    await ensureDbInitialized();
-    next();
-  } catch (err) {
-    console.error('Database initialization error:', err);
-    res.status(500).json({ error: 'Database initialization failed' });
-  }
-});
 
 // Export for Vercel
 module.exports = app;

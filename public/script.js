@@ -255,33 +255,79 @@ submitForm.addEventListener('submit', async (e) => {
         paymentButton.disabled = true;
         paymentButton.textContent = 'creando trabajo...';
         
-        const jobResponse = await fetch(`${API_BASE_URL}/jobs`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                companyName: data.companyName,
-                companyWebsite: data.companyWebsite,
-                jobTitle: data.jobTitle,
-                jobLocation: data.jobLocation,
-                jobType: data.jobType,
-                experienceLevel: data.experienceLevel,
-                remoteOnsite: data.remoteOnsite,
-                compensation: data.compensation,
-                team: data.team,
-                applicationLink: data.applicationLink,
-                submitterName: data.yourName,
-                submitterEmail: data.yourEmail
-            })
+        console.log('Submitting job with data:', {
+            companyName: data.companyName,
+            jobTitle: data.jobTitle,
+            team: data.team
         });
         
-        if (!jobResponse.ok) {
-            const error = await jobResponse.json();
-            throw new Error(error.error || 'error al crear el trabajo');
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        let jobResponse;
+        try {
+            jobResponse = await fetch(`${API_BASE_URL}/jobs`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    companyName: data.companyName,
+                    companyWebsite: data.companyWebsite,
+                    jobTitle: data.jobTitle,
+                    jobLocation: data.jobLocation,
+                    jobType: data.jobType,
+                    experienceLevel: data.experienceLevel,
+                    remoteOnsite: data.remoteOnsite,
+                    compensation: data.compensation,
+                    team: data.team,
+                    applicationLink: data.applicationLink,
+                    submitterName: data.yourName,
+                    submitterEmail: data.yourEmail
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                throw new Error('la solicitud tardó demasiado. por favor intenta de nuevo.');
+            }
+            throw fetchError;
         }
         
-        const { jobId } = await jobResponse.json();
+        console.log('Job response status:', jobResponse.status);
+        console.log('Job response ok:', jobResponse.ok);
+        console.log('Job response headers:', jobResponse.headers.get('content-type'));
+        
+        // Check if response is JSON
+        const contentType = jobResponse.headers.get('content-type');
+        let responseData;
+        
+        if (contentType && contentType.includes('application/json')) {
+            responseData = await jobResponse.json();
+            console.log('Job response data:', responseData);
+        } else {
+            // If not JSON, get text and log it
+            const textResponse = await jobResponse.text();
+            console.error('Non-JSON response received:', textResponse);
+            throw new Error('el servidor devolvió una respuesta inválida. por favor intenta de nuevo.');
+        }
+        
+        if (!jobResponse.ok) {
+            throw new Error(responseData.error || 'error al crear el trabajo');
+        }
+        
+        // Handle both 'jobId' and 'id' in response
+        const jobId = responseData.jobId || responseData.id;
+        
+        if (!jobId) {
+            console.error('No jobId in response:', responseData);
+            throw new Error('no se recibió el ID del trabajo');
+        }
+        
+        console.log('Job created successfully with ID:', jobId);
         
         // Step 2: Show payment iframe
         paymentButton.textContent = originalText;
@@ -289,6 +335,7 @@ submitForm.addEventListener('submit', async (e) => {
         
     } catch (error) {
         console.error('Error submitting job:', error);
+        console.error('Error stack:', error.stack);
         alert('error enviando el trabajo: ' + (error.message || 'por favor intenta de nuevo'));
         paymentButton.disabled = false;
         paymentButton.textContent = originalText;

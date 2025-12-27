@@ -124,9 +124,97 @@ function close() {
   });
 }
 
+// Helper functions to abstract SQLite vs PostgreSQL differences
+function isPostgreSQL() {
+  return pgDb && process.env.DATABASE_URL;
+}
+
+// Execute a query (works for both SQLite and PostgreSQL)
+async function query(sql, params = []) {
+  const database = getDb();
+  
+  if (isPostgreSQL()) {
+    // PostgreSQL uses promises
+    try {
+      const result = await database.query(sql, params);
+      // For INSERT with RETURNING, rows will contain the returned data
+      // For regular INSERT/UPDATE/DELETE, rowCount is the number of affected rows
+      return {
+        rows: result.rows || [],
+        lastID: result.rows && result.rows[0] ? result.rows[0].id : null,
+        changes: result.rowCount || 0
+      };
+    } catch (err) {
+      console.error('PostgreSQL query error:', err);
+      console.error('SQL:', sql);
+      console.error('Params:', params);
+      throw err;
+    }
+  } else {
+    // SQLite uses callbacks, convert to promise
+    return new Promise((resolve, reject) => {
+      // Check if it's a SELECT query
+      const sqlUpper = sql.trim().toUpperCase();
+      const isSelect = sqlUpper.startsWith('SELECT');
+      
+      if (isSelect) {
+        database.all(sql, params, (err, rows) => {
+          if (err) {
+            console.error('SQLite SELECT error:', err);
+            console.error('SQL:', sql);
+            console.error('Params:', params);
+            reject(err);
+          } else {
+            resolve({ rows: rows || [], lastID: null, changes: rows ? rows.length : 0 });
+          }
+        });
+      } else {
+        // For INSERT/UPDATE/DELETE, use run
+        database.run(sql, params, function(err) {
+          if (err) {
+            console.error('SQLite INSERT/UPDATE/DELETE error:', err);
+            console.error('SQL:', sql);
+            console.error('Params:', params);
+            reject(err);
+          } else {
+            resolve({
+              rows: [],
+              lastID: this.lastID,
+              changes: this.changes
+            });
+          }
+        });
+      }
+    });
+  }
+}
+
+// Get a single row (works for both SQLite and PostgreSQL)
+async function get(sql, params = []) {
+  const database = getDb();
+  
+  if (isPostgreSQL()) {
+    const result = await database.query(sql, params);
+    return result.rows[0] || null;
+  } else {
+    return new Promise((resolve, reject) => {
+      database.get(sql, params, (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      });
+    });
+  }
+}
+
 module.exports = {
   getDb,
   init,
-  close
+  close,
+  query,
+  get,
+  isPostgreSQL
 };
 

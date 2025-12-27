@@ -166,9 +166,40 @@
                 
                 const data = await response.json();
                 
+                console.log('Login response status:', response.status);
+                console.log('Login response data:', data);
+                
                 if (response.ok && data.success) {
-                    window.location.href = '/admin.html';
+                    console.log('Login successful, verifying session...');
+                    console.log('Session ID:', data.sessionId);
+                    
+                    // Verify session before redirecting
+                    setTimeout(async () => {
+                        try {
+                            const checkResponse = await fetch(`${API_BASE_URL}/auth/check`, {
+                                credentials: 'include'
+                            });
+                            const checkData = await checkResponse.json();
+                            console.log('Session check after login:', checkData);
+                            
+                            if (checkData.authenticated) {
+                                console.log('Session verified, redirecting...');
+                                window.location.href = '/admin.html';
+                            } else {
+                                console.error('Session not authenticated after login');
+                                errorMessage.textContent = 'error: sesión no se guardó correctamente. revisa la configuración en vercel.';
+                                errorMessage.classList.add('show');
+                                loginButton.disabled = false;
+                                loginButton.textContent = 'iniciar sesión';
+                            }
+                        } catch (err) {
+                            console.error('Error verifying session:', err);
+                            // Try redirect anyway
+                            window.location.href = '/admin.html';
+                        }
+                    }, 200);
                 } else {
+                    console.log('Login failed:', data.error);
                     errorMessage.textContent = data.error || 'error al iniciar sesión';
                     errorMessage.classList.add('show');
                     loginButton.disabled = false;
