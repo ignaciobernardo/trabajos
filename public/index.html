@@ -13,9 +13,18 @@
             <header class="sidebar-header">
                 <h1 class="logo">simplemente trabajos.</h1>
                 <nav class="sidebar-nav">
-                    <a href="#" class="nav-link">subé uno</a>
-                    <a href="#" class="nav-link">suscríbete</a>
+                    <a href="#" class="nav-link" id="subscribeToggle">suscríbete</a>
+                    <a href="#" class="nav-link" id="themeToggle">light mode</a>
                 </nav>
+                
+                <!-- Subscribe Collapsible -->
+                <div class="subscribe-collapse" id="subscribeCollapse">
+                    <div class="subscribe-form">
+                        <input type="email" id="subscribeEmail" placeholder="tu@email.com" class="subscribe-input">
+                        <button type="button" id="subscribeBtn" class="subscribe-btn">→</button>
+                    </div>
+                    <p class="subscribe-feedback" id="subscribeFeedback"></p>
+                </div>
             </header>
             
             <div class="sidebar-content">
@@ -31,8 +40,7 @@
             </div>
             
             <footer class="sidebar-footer">
-                <p>a natochi project.</p>
-                <p>created by indies.cl.</p>
+                <p>natochi project.</p> by <a href="https://indies.cl" style="color: #FF6B3D;">indies.cl</a>
             </footer>
         </aside>
 
@@ -58,8 +66,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-instructions">
-                    <p><strong>$15.000 luquitas para publicar un trabajo.</strong></p>
-                    <p>todos los campos son requeridos para ser considerado.</p>
+                    <p><strong style="color: #FF4F18; font-size: 25px;">$15.000 luquitas para publicar un trabajo.</strong></p>                    <p>todos los campos son requeridos para ser considerado.</p>
                     <p>serás reembolsado si tu publicación no es aceptada.</p>
                     <p>tambien se publicara en nuestro discord +1300 personas.</p>
                 </div>

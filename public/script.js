@@ -277,6 +277,93 @@ tabs.forEach(tab => {
 submitForm.addEventListener('submit', handleFormSubmit);
 
 // =============================================================================
+// THEME TOGGLE
+// =============================================================================
+
+const themeToggle = document.getElementById('themeToggle');
+const root = document.documentElement;
+
+// Check saved preference
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light') {
+  root.classList.add('light-mode');
+  themeToggle.textContent = 'dark mode';
+}
+
+themeToggle.addEventListener('click', (e) => {
+  e.preventDefault();
+  root.classList.toggle('light-mode');
+  
+  const isLight = root.classList.contains('light-mode');
+  themeToggle.textContent = isLight ? 'dark mode' : 'light mode';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+});
+
+// =============================================================================
+// SUBSCRIBE FUNCTIONALITY
+// =============================================================================
+
+const subscribeToggle = document.getElementById('subscribeToggle');
+const subscribeCollapse = document.getElementById('subscribeCollapse');
+const subscribeEmail = document.getElementById('subscribeEmail');
+const subscribeBtn = document.getElementById('subscribeBtn');
+const subscribeFeedback = document.getElementById('subscribeFeedback');
+
+subscribeToggle.addEventListener('click', (e) => {
+  e.preventDefault();
+  subscribeCollapse.classList.toggle('active');
+  if (subscribeCollapse.classList.contains('active')) {
+    setTimeout(() => subscribeEmail.focus(), 100);
+  }
+});
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function showFeedback(message, isSuccess) {
+  subscribeFeedback.textContent = message;
+  subscribeFeedback.className = 'subscribe-feedback show ' + (isSuccess ? 'success' : 'error');
+  
+  if (isSuccess) {
+    setTimeout(() => {
+      subscribeFeedback.classList.remove('show');
+      subscribeEmail.value = '';
+    }, 3000);
+  }
+}
+
+subscribeBtn.addEventListener('click', () => {
+  const email = subscribeEmail.value.trim();
+  
+  if (!email) {
+    showFeedback('ingresa tu email', false);
+    return;
+  }
+  
+  if (!validateEmail(email)) {
+    showFeedback('email inválido', false);
+    return;
+  }
+  
+  // Simulate success (replace with real API call)
+  subscribeBtn.textContent = '...';
+  subscribeBtn.disabled = true;
+  
+  setTimeout(() => {
+    showFeedback('¡agregado! te avisaremos de nuevos trabajos.', true);
+    subscribeBtn.textContent = '→';
+    subscribeBtn.disabled = false;
+  }, 500);
+});
+
+subscribeEmail.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    subscribeBtn.click();
+  }
+});
+
+// =============================================================================
 // INITIALIZATION
 // =============================================================================
 
