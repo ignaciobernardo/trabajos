@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>admin - simplemente trabajos</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .admin-header {
+            margin-bottom: 40px;
+        }
+
+        .admin-header h1 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .admin-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .admin-tabs {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .admin-tab {
+            background: none;
+            border: none;
+            padding: 12px 0;
+            font-size: 16px;
+            color: #666;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s;
+            font-family: inherit;
+        }
+
+        .admin-tab:hover {
+            color: #000;
+        }
+
+        .admin-tab.active {
+            color: #000;
+            border-bottom-color: #000;
+            font-weight: 500;
+        }
+
+        .jobs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .job-card-admin {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 24px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .job-card-admin:hover {
+            border-color: #000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .job-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .job-card-title {
+            flex: 1;
+        }
+
+        .job-card-title h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .job-card-title .company {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .job-status {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .job-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .job-status.approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .job-status.rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .job-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+
+        .job-detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .job-detail-label {
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .job-detail-value {
+            color: #000;
+            font-weight: 500;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-approve {
+            background: #000;
+            color: #fff;
+        }
+
+        .btn-approve:hover {
+            background: #333;
+        }
+
+        .btn-reject {
+            background: #fff;
+            color: #000;
+            border: 1px solid #e5e5e5;
+        }
+
+        .btn-reject:hover {
+            background: #f5f5f5;
+        }
+
+        .btn-delete {
+            background: #fff;
+            color: #dc3545;
+            border: 1px solid #dc3545;
+        }
+
+        .btn-delete:hover {
+            background: #dc3545;
+            color: #fff;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h1>panel de administración</h1>
+                <p>gestiona las ofertas de trabajo pendientes</p>
+            </div>
+            <button class="btn btn-reject" onclick="logout()" style="margin-top: 0;">cerrar sesión</button>
+        </div>
+
+        <div class="admin-tabs">
+            <button class="admin-tab active" data-tab="pending">pendientes</button>
+            <button class="admin-tab" data-tab="all">todos</button>
+        </div>
+
+        <div id="jobsList" class="jobs-list">
+            <div class="loading">cargando...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin + '/api';
+        let currentTab = 'pending';
+
+        // Check authentication on load
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/check`, {
+                    credentials: 'include'
+                });
+                
+                if (response.status === 401 || !response.ok) {
+                    window.location.href = '/login.html';
+                    return false;
+                }
+                
+                const data = await response.json();
+                if (!data.authenticated) {
+                    window.location.href = '/login.html';
+                    return false;
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('Error checking auth:', error);
+                window.location.href = '/login.html';
+                return false;
+            }
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('Error logging out:', error);
+                window.location.href = '/login.html';
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.admin-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.getAttribute('data-tab');
+                loadJobs();
+            });
+        });
+
+        // Load jobs
+        async function loadJobs() {
+            const jobsList = document.getElementById('jobsList');
+            jobsList.innerHTML = '<div class="loading">cargando...</div>';
+
+            try {
+                const endpoint = currentTab === 'pending' ? '/admin/jobs' : '/admin/jobs/all';
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error('error al cargar los trabajos');
+                }
+
+                const jobs = await response.json();
+                
+                if (jobs.length === 0) {
+                    jobsList.innerHTML = '<div class="empty-state"><p>no hay trabajos ' + (currentTab === 'pending' ? 'pendientes' : '') + '</p></div>';
+                    return;
+                }
+
+                jobsList.innerHTML = jobs.map(job => renderJobCard(job)).join('');
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+                jobsList.innerHTML = '<div class="empty-state"><p>error al cargar los trabajos</p></div>';
+            }
+        }
+
+        // Render job card
+        function renderJobCard(job) {
+            const statusClass = job.status === 'pending' ? 'pending' : 
+                               job.status === 'approved' ? 'approved' : 'rejected';
+            const statusText = job.status === 'pending' ? 'pendiente' : 
+                              job.status === 'approved' ? 'aprobado' : 'rechazado';
+
+            const logoHtml = job.company_logo 
+                ? `<img src="${job.company_logo}" alt="${job.company_name}" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover; margin-right: 12px;">`
+                : `<div style="width: 32px; height: 32px; border-radius: 4px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600;">${job.company_name.charAt(0).toUpperCase()}</div>`;
+
+            return `
+                <div class="job-card-admin" data-job-id="${job.id}">
+                    <div class="job-card-header">
+                        <div class="job-card-title">
+                            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                ${logoHtml}
+                                <div>
+                                    <h3>${job.job_title}</h3>
+                                    <div class="company">${job.company_name}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <span class="job-status ${statusClass}">${statusText}</span>
+                    </div>
+
+                    <div class="job-details-grid">
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">ubicación</span>
+                            <span class="job-detail-value">${job.job_location}</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">tipo</span>
+                            <span class="job-detail-value">${job.job_type}</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">experiencia</span>
+                            <span class="job-detail-value">${job.experience_level}</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">remoto/presencial</span>
+                            <span class="job-detail-value">${job.remote_onsite}</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">compensación</span>
+                            <span class="job-detail-value">${job.compensation}</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">equipo</span>
+                            <span class="job-detail-value">${job.team}</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">enviado por</span>
+                            <span class="job-detail-value">${job.submitter_name} (${job.submitter_email})</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">fecha</span>
+                            <span class="job-detail-value">${new Date(job.created_at).toLocaleDateString('es-ES')}</span>
+                        </div>
+                        ${job.payment_intent_id ? `
+                        <div class="job-detail-item">
+                            <span class="job-detail-label">numero de cuenta</span>
+                            <span class="job-detail-value">${job.payment_intent_id}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="job-detail-item" style="margin-bottom: 16px;">
+                        <span class="job-detail-label">link de aplicación</span>
+                        <a href="${job.application_link}" target="_blank" style="color: #000; text-decoration: underline;">${job.application_link}</a>
+                    </div>
+
+                    ${job.status === 'pending' ? `
+                    <div class="job-actions">
+                        <button class="btn btn-approve" onclick="approveJob(${job.id})">aprobar</button>
+                        <button class="btn btn-reject" onclick="rejectJob(${job.id})">rechazar</button>
+                    </div>
+                    ` : ''}
+                    ${job.status !== 'pending' ? `
+                    <div class="job-actions">
+                        <button class="btn btn-delete" onclick="deleteJob(${job.id})">eliminar</button>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Approve job
+        async function approveJob(jobId) {
+            if (!confirm('¿estás seguro de aprobar este trabajo?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}/approve`, {
+                    method: 'PATCH',
+                    credentials: 'include'
+                });
+                
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error('error al aprobar el trabajo');
+                }
+
+                loadJobs();
+            } catch (error) {
+                console.error('Error approving job:', error);
+                alert('error al aprobar el trabajo');
+            }
+        }
+
+        // Reject job
+        async function rejectJob(jobId) {
+            if (!confirm('¿estás seguro de rechazar este trabajo?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}/reject`, {
+                    method: 'PATCH',
+                    credentials: 'include'
+                });
+                
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error('error al rechazar el trabajo');
+                }
+
+                loadJobs();
+            } catch (error) {
+                console.error('Error rejecting job:', error);
+                alert('error al rechazar el trabajo');
+            }
+        }
+
+        // Delete job
+        async function deleteJob(jobId) {
+            if (!confirm('¿estás seguro de eliminar este trabajo? esta acción no se puede deshacer.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error('error al eliminar el trabajo');
+                }
+
+                loadJobs();
+            } catch (error) {
+                console.error('Error deleting job:', error);
+                alert('error al eliminar el trabajo');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            const isAuthenticated = await checkAuth();
+            if (isAuthenticated) {
+                loadJobs();
+            }
+        });
+    </script>
+</body>
+</html>
+

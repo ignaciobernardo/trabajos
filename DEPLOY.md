@@ -1,103 +1,119 @@
-# Guía de Deployment a indies.cl/trabajos
+# 🚀 Guía de Despliegue - indies.cl/trabajos
 
-## Opción 1: Cloudflare Pages (Directo - Sin Git)
+## Opción 1: Railway (Recomendado - Incluye PostgreSQL gratis)
 
-### Paso 1: Preparar los archivos
-1. Asegúrate de tener todos los archivos listos:
-   - index.html
-   - styles.css
-   - script.js
-   - _headers (opcional, para seguridad)
-
-### Paso 2: Acceder a Cloudflare Pages
-1. Ve a [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Inicia sesión con tu cuenta
-3. En el menú lateral, busca y haz clic en **"Pages"**
-4. Haz clic en **"Create a project"**
-
-### Paso 3: Subir archivos
-1. Selecciona **"Upload assets"** (no "Connect to Git")
-2. Arrastra y suelta todos los archivos de la carpeta `jobs` o haz clic en "Select files"
-3. Sube:
-   - index.html
-   - styles.css
-   - script.js
-   - _headers (opcional)
-4. Haz clic en **"Deploy site"**
-
-### Paso 4: Configurar dominio personalizado
-1. Una vez desplegado, verás una URL tipo: `tu-proyecto.pages.dev`
-2. Ve a **"Custom domains"** en la configuración del proyecto
-3. Haz clic en **"Set up a custom domain"**
-4. Ingresa: `trabajos.indies.cl` o `indies.cl/trabajos`
-5. Cloudflare te guiará para configurar los DNS
-
-### Paso 5: Configurar DNS (si usas subdominio)
-Si usas `trabajos.indies.cl`:
-- En Cloudflare DNS, agrega un registro CNAME:
-  - Nombre: `trabajos`
-  - Target: `tu-proyecto.pages.dev`
-  - Proxy: Activado (nube naranja)
-
-### Paso 6: Configurar para ruta (indies.cl/trabajos)
-Si quieres usar `indies.cl/trabajos` (ruta en lugar de subdominio):
-1. En Cloudflare Pages, ve a **"Custom domains"**
-2. Agrega `indies.cl` como dominio
-3. En **"Page Rules"** o usando **Workers**, configura una regla para redirigir `/trabajos` al proyecto de Pages
-4. O mejor aún, usa **Cloudflare Workers** para servir el contenido en `/trabajos`
-
----
-
-## Opción 2: Cloudflare Pages con Git (Recomendado)
-
-### Paso 1: Crear repositorio Git
+### 1. Preparar el repositorio
 ```bash
-cd /Users/natochi/Documents/jobs
 git init
 git add .
-git commit -m "Initial commit: job board"
-```
-
-### Paso 2: Subir a GitHub/GitLab
-1. Crea un repositorio en GitHub (público o privado)
-2. Conecta tu repositorio local:
-```bash
-git remote add origin https://github.com/tu-usuario/trabajos.git
-git branch -M main
+git commit -m "Initial commit - Job board ready for production"
+git remote add origin <tu-repo-github>
 git push -u origin main
 ```
 
-### Paso 3: Conectar con Cloudflare Pages
-1. Ve a Cloudflare Dashboard > Pages
-2. Haz clic en **"Create a project"**
-3. Selecciona **"Connect to Git"**
-4. Autoriza Cloudflare a acceder a tu repositorio
-5. Selecciona el repositorio `trabajos`
-6. Configuración de build:
-   - **Build command**: (dejar vacío, es sitio estático)
-   - **Build output directory**: `/` (raíz)
-   - **Root directory**: `/` (raíz)
-7. Haz clic en **"Save and Deploy"**
+### 2. Desplegar en Railway
 
-### Paso 4: Configurar dominio
-1. Una vez desplegado, ve a **"Custom domains"**
-2. Agrega `trabajos.indies.cl` o configura `indies.cl/trabajos`
+1. Ve a [railway.app](https://railway.app) y crea una cuenta
+2. Click en "New Project" → "Deploy from GitHub repo"
+3. Selecciona tu repositorio
+4. Railway detectará automáticamente el proyecto Node.js
 
----
+### 3. Configurar Base de Datos PostgreSQL
 
-## Opción 3: Usar Workers para ruta /trabajos
+1. En Railway, click en "New" → "Database" → "Add PostgreSQL"
+2. Railway creará automáticamente una base de datos PostgreSQL
+3. Copia la variable `DATABASE_URL` que Railway genera
 
-Si necesitas que esté en `indies.cl/trabajos` (no subdominio), usa Cloudflare Workers:
+### 4. Configurar Variables de Entorno
 
-1. Ve a **Workers & Pages** > **Create** > **Worker**
-2. Crea un worker que sirva los archivos estáticos en la ruta `/trabajos`
-3. O usa **Workers Routes** para enrutar `/trabajos/*` a tu proyecto de Pages
+En Railway, ve a "Variables" y agrega:
 
----
+```
+NODE_ENV=production
+PORT=3000
+ADMIN_PASSWORD=tu_contraseña_super_segura_aqui
+SESSION_SECRET=tu_secret_key_muy_larga_y_aleatoria_aqui
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
 
-## Notas importantes:
+### 5. Actualizar código para PostgreSQL
 
-- **HTTPS**: Cloudflare Pages incluye HTTPS automático
-- **Actualizaciones**: Con Git, cada push actualiza automáticamente el sitio
-- **Rutas**: Para `indies.cl/trabajos`, considera usar Workers o configurar el sitio principal para servir desde esa ruta
+El código ya está preparado para usar PostgreSQL si `DATABASE_URL` está configurado.
+
+### 6. Configurar Dominio
+
+1. En Railway, ve a "Settings" → "Networking"
+2. Click en "Generate Domain" o agrega tu dominio personalizado
+3. Para `indies.cl/trabajos`, configura un subdominio o path en tu DNS
+
+## Opción 2: Vercel + Railway DB
+
+### 1. Base de Datos en Railway
+- Sigue los pasos 3-4 de Railway arriba para crear la DB
+
+### 2. Desplegar en Vercel
+1. Ve a [vercel.com](https://vercel.com)
+2. Importa tu repositorio de GitHub
+3. Vercel detectará automáticamente la configuración
+4. Agrega las variables de entorno (sin DATABASE_URL, usa la de Railway)
+
+### 3. Configurar Dominio
+- En Vercel, ve a "Settings" → "Domains"
+- Agrega `trabajos.indies.cl` o configura el path en tu DNS
+
+## Configuración DNS para indies.cl/trabajos
+
+### Opción A: Subdominio (trabajos.indies.cl)
+```
+Type: CNAME
+Name: trabajos
+Value: [tu-dominio-de-railway].railway.app
+```
+
+### Opción B: Path (indies.cl/trabajos)
+Necesitarás configurar un reverse proxy en tu servidor principal de indies.cl
+
+## Variables de Entorno Requeridas
+
+```env
+NODE_ENV=production
+PORT=3000
+ADMIN_PASSWORD=tu_contraseña_segura
+SESSION_SECRET=tu_secret_key_aleatoria_larga
+DATABASE_URL=postgresql://user:password@host:port/database
+```
+
+## Post-Deploy Checklist
+
+- [ ] Verificar que la base de datos se inicializa correctamente
+- [ ] Probar el login de admin
+- [ ] Probar crear un trabajo de prueba
+- [ ] Verificar que los trabajos se muestran correctamente
+- [ ] Probar el flujo completo de pago
+- [ ] Verificar que el iframe de Fintoc funciona
+- [ ] Probar aprobar un trabajo desde el admin
+- [ ] Verificar que los trabajos aprobados aparecen en el job board
+
+## Migración de Datos (si tienes datos en SQLite local)
+
+Si tienes datos en SQLite que quieres migrar:
+
+```bash
+# Exportar datos de SQLite
+sqlite3 db/jobs.db .dump > backup.sql
+
+# Importar a PostgreSQL (ajusta la conexión)
+psql $DATABASE_URL < backup.sql
+```
+
+## Monitoreo
+
+- Railway: Dashboard muestra logs y métricas
+- Vercel: Analytics en el dashboard
+- Considera agregar Sentry para error tracking
+
+## Backup
+
+- Railway PostgreSQL: Backups automáticos diarios
+- Configura backups adicionales si es necesario
 

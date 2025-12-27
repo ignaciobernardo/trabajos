@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>simplemente trabajos</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Left Sidebar -->
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <h1 class="logo">simplemente trabajos.</h1>
+                <nav class="sidebar-nav">
+                    <a href="#" class="nav-link">subé uno</a>
+                    <a href="#" class="nav-link">suscríbete</a>
+                </nav>
+            </header>
+            
+            <div class="sidebar-content">
+                <p class="description">mejores trabajos en tech y startups. oportunidades top, compensación transparente.</p>
+                
+                <ul class="job-characteristics">
+                    <li>+ part-time o full-time.</li>
+                    <li>+ remoto o presencial.</li>
+                    <li>+ salario debe ser publicado.</li>
+                </ul>
+                
+                <a href="#" class="submit-link" id="submitJobBtn">sube uno ;]</a>
+            </div>
+            
+            <footer class="sidebar-footer">
+                <p>a natochi project.</p>
+                <p>created by indies.cl.</p>
+            </footer>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Navigation Tabs -->
+            <nav class="tabs">
+                <button class="tab active" data-tab="design">design</button>
+                <button class="tab" data-tab="engineering">engineering</button>
+                <button class="tab" data-tab="product">product</button>
+                <button class="tab" data-tab="growth">growth</button>
+            </nav>
+
+            <!-- Job Cards Grid -->
+            <div class="jobs-grid" id="jobsGrid">
+                <!-- Jobs will be dynamically loaded here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Submit Job Modal -->
+    <div class="modal-overlay" id="submitModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-instructions">
+                    <p><strong>$15.000 luquitas para publicar un trabajo.</strong></p>
+                    <p>todos los campos son requeridos para ser considerado.</p>
+                    <p>serás reembolsado si tu publicación no es aceptada.</p>
+                    <p>tambien se publicara en nuestro discord +1300 personas.</p>
+                </div>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+
+            <form class="submit-form" id="submitForm">
+                <div class="form-group">
+                    <label for="yourName">tu nombre</label>
+                    <input type="text" id="yourName" name="yourName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="yourEmail">tu email</label>
+                    <input type="email" id="yourEmail" name="yourEmail" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="companyName">nombre de la empresa</label>
+                    <input type="text" id="companyName" name="companyName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="companyWebsite">sitio web de la empresa</label>
+                    <input type="url" id="companyWebsite" name="companyWebsite" placeholder="https://ejemplo.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="jobTitle">título del trabajo</label>
+                    <input type="text" id="jobTitle" name="jobTitle" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="jobLocation">ubicación del trabajo</label>
+                    <input type="text" id="jobLocation" name="jobLocation" placeholder="ubicación/preferencia de zona horaria" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="jobType">tipo de trabajo</label>
+                    <select id="jobType" name="jobType" required>
+                        <option value="">selecciona...</option>
+                        <option value="full-time">full-time</option>
+                        <option value="part-time">part-time</option>
+                        <option value="contrato">contrato</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="experienceLevel">nivel de experiencia</label>
+                    <select id="experienceLevel" name="experienceLevel" required>
+                        <option value="">selecciona...</option>
+                        <option value="entry level">entry level</option>
+                        <option value="entry/mid">entry/mid</option>
+                        <option value="mid level">mid level</option>
+                        <option value="mid/senior">mid/senior</option>
+                        <option value="senior">senior</option>
+                        <option value="director">director</option>
+                        <option value="cualquiera">cualquiera</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="remoteOnsite">remoto o presencial?</label>
+                    <select id="remoteOnsite" name="remoteOnsite" required>
+                        <option value="">selecciona...</option>
+                        <option value="presencial">presencial</option>
+                        <option value="remoto">remoto</option>
+                        <option value="híbrido">híbrido</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="compensation">compensación (CLP)</label>
+                    <input type="text" id="compensation" name="compensation" placeholder="$1.5M-$3M" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="team">equipo</label>
+                    <select id="team" name="team" required>
+                        <option value="">selecciona...</option>
+                        <option value="design">design</option>
+                        <option value="engineering">engineering</option>
+                        <option value="product">product</option>
+                        <option value="growth">growth</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="applicationLink">link de aplicación</label>
+                    <input type="url" id="applicationLink" name="applicationLink" placeholder="https://ejemplo.com/trabajos/aplicar" required>
+                </div>
+
+                <button type="submit" class="payment-button full-width">pagar (la mejor decision de tu vida)</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

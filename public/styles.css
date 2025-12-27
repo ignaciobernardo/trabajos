@@ -254,10 +254,13 @@ body {
     background-color: #ffffff;
     border-radius: 12px;
     width: 100%;
-    max-width: 600px;
+    max-width: 900px;
     margin: auto;
     position: relative;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-header {
@@ -306,6 +309,11 @@ body {
 
 .submit-form {
     padding: 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    flex: 1;
+    overflow-y: auto;
 }
 
 .submit-form h2 {
@@ -313,10 +321,15 @@ body {
     font-weight: 600;
     margin-bottom: 24px;
     letter-spacing: -0.02em;
+    grid-column: 1 / -1;
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 0;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
 }
 
 .form-group label {
@@ -371,6 +384,7 @@ body {
     transition: background-color 0.2s;
     font-family: inherit;
     margin-top: 8px;
+    grid-column: 1 / -1;
 }
 
 .payment-button:hover {
@@ -431,6 +445,10 @@ body {
     .submit-form {
         padding: 24px;
     }
+
+    .submit-form {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 480px) {
@@ -449,6 +467,10 @@ body {
     .modal-header,
     .submit-form {
         padding: 20px;
+    }
+
+    .submit-form {
+        grid-template-columns: 1fr;
     }
 }
 
