@@ -6,7 +6,18 @@ const db = require('../db/database');
 router.get('/', (req, res) => {
   const { team } = req.query;
   const database = db.getDb();
-  const isPostgres = database && typeof database.query === 'function';
+  
+  // First, let's get all approved jobs to debug
+  let debugQuery = 'SELECT id, status, expires_at, team, job_title FROM jobs WHERE status = ?';
+  database.all(debugQuery, ['approved'], (debugErr, debugRows) => {
+    if (!debugErr) {
+      console.log('=== DEBUG: All approved jobs ===');
+      debugRows.forEach(row => {
+        console.log(`ID: ${row.id}, Title: ${row.job_title}, Status: ${row.status}, Expires: ${row.expires_at}, Team: ${row.team}`);
+      });
+      console.log(`Total approved jobs in DB: ${debugRows.length}`);
+    }
+  });
   
   // Build query with optional team filter
   let query = `
@@ -26,7 +37,7 @@ router.get('/', (req, res) => {
       created_at,
       expires_at
     FROM jobs
-    WHERE status = ${isPostgres ? '$1' : '?'}
+    WHERE status = ?
   `;
   
   const params = ['approved'];
@@ -34,7 +45,7 @@ router.get('/', (req, res) => {
   console.log(`Query params - team filter: ${team}`);
   
   if (team && team !== 'all') {
-    query += ` AND LOWER(team) = LOWER(${isPostgres ? '$2' : '?'})`;
+    query += ' AND LOWER(team) = LOWER(?)';
     params.push(team);
     console.log(`Filtering by team: ${team}`);
   } else {
@@ -46,70 +57,53 @@ router.get('/', (req, res) => {
   console.log(`Executing query: ${query}`);
   console.log(`With params:`, params);
   
-  // Execute query based on database type
-  if (isPostgres) {
-    database.query(query, params)
-      .then(result => {
-        const rows = result.rows;
-        processJobs(rows, team, res);
-      })
-      .catch(err => {
-        console.error('Error fetching jobs:', err);
-        return res.status(500).json({ error: 'error al cargar los trabajos' });
-      });
-  } else {
-    database.all(query, params, (err, rows) => {
-      if (err) {
-        console.error('Error fetching jobs:', err);
-        console.error('Query was:', query);
-        console.error('Params were:', params);
-        return res.status(500).json({ error: 'error al cargar los trabajos' });
-      }
-      processJobs(rows, team, res);
-    });
-  }
-});
-
-// Helper function to process jobs
-function processJobs(rows, team, res) {
-  // Filter out expired jobs in JavaScript (more reliable)
-  const now = new Date();
-  const validJobs = rows.filter(row => {
-    if (!row.expires_at) return true; // No expiration date means it never expires
-    const expiresAt = new Date(row.expires_at);
-    return expiresAt > now;
-  });
-  
-  console.log(`Found ${rows.length} approved jobs, ${validJobs.length} not expired (team: ${team || 'all'})`);
-  
-  // Format jobs for frontend
-  const jobs = validJobs.map(row => {
-    let logo = row.company_logo;
-    if (!logo && row.company_website) {
-      try {
-        const domain = new URL(row.company_website.startsWith('http') ? row.company_website : 'https://' + row.company_website).hostname;
-        logo = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-      } catch (e) {
-        console.error('Error creating logo URL:', e);
-        logo = null;
-      }
+  database.all(query, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching jobs:', err);
+      console.error('Query was:', query);
+      console.error('Params were:', params);
+      return res.status(500).json({ error: 'error al cargar los trabajos' });
     }
     
-    return {
-      id: row.id,
-      company: row.company_name,
-      logo: logo,
-      title: row.job_title,
-      location: row.job_location,
-      type: row.job_type,
-      experience: row.experience_level,
-      salary: row.compensation,
-      applyLink: row.application_link
-    };
+    // Filter out expired jobs in JavaScript (more reliable)
+    const now = new Date();
+    const validJobs = rows.filter(row => {
+      if (!row.expires_at) return true; // No expiration date means it never expires
+      const expiresAt = new Date(row.expires_at);
+      return expiresAt > now;
+    });
+    
+    console.log(`Found ${rows.length} approved jobs, ${validJobs.length} not expired (team: ${team || 'all'})`);
+    
+    // Format jobs for frontend
+    const jobs = validJobs.map(row => {
+      let logo = row.company_logo;
+      if (!logo && row.company_website) {
+        try {
+          const domain = new URL(row.company_website.startsWith('http') ? row.company_website : 'https://' + row.company_website).hostname;
+          logo = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+        } catch (e) {
+          console.error('Error creating logo URL:', e);
+          logo = null;
+        }
+      }
+      
+      return {
+        id: row.id,
+        company: row.company_name,
+        logo: logo,
+        title: row.job_title,
+        location: row.job_location,
+        type: row.job_type,
+        experience: row.experience_level,
+        salary: row.compensation,
+        applyLink: row.application_link
+      };
+    });
+    
+    res.json(jobs);
   });
-  
-  res.json(jobs);
-}
+});
 
 // Get job by ID
 router.get('/:id', (req, res) => {

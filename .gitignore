@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
+# Keep package-lock.json for production
+# package-lock.json
 
 # Environment variables
 .env
@@ -31,3 +32,4 @@ Thumbs.db
 # Build
 dist/
 build/
+

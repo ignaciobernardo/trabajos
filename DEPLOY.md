@@ -1,119 +1,79 @@
-# 🚀 Guía de Despliegue - indies.cl/trabajos
+# Guía de Despliegue - indies.cl/trabajos
 
-## Opción 1: Railway (Recomendado - Incluye PostgreSQL gratis)
+## 🚀 Despliegue en Vercel
 
-### 1. Preparar el repositorio
-```bash
-git init
-git add .
-git commit -m "Initial commit - Job board ready for production"
-git remote add origin <tu-repo-github>
-git push -u origin main
-```
+### 1. Preparación
 
-### 2. Desplegar en Railway
+1. **Asegúrate de tener todo en GitHub:**
+   ```bash
+   git add .
+   git commit -m "Ready for production"
+   git push origin main
+   ```
 
-1. Ve a [railway.app](https://railway.app) y crea una cuenta
-2. Click en "New Project" → "Deploy from GitHub repo"
-3. Selecciona tu repositorio
-4. Railway detectará automáticamente el proyecto Node.js
+### 2. Configurar Vercel
 
-### 3. Configurar Base de Datos PostgreSQL
+1. Ve a [vercel.com](https://vercel.com) e inicia sesión con GitHub
+2. Importa el repositorio
+3. Configura las variables de entorno en Vercel:
+   - `NODE_ENV` = `production`
+   - `ADMIN_PASSWORD` = `tu_contraseña_segura`
+   - `SESSION_SECRET` = `genera_una_clave_secreta_larga_y_aleatoria`
+   - `PORT` = `3000` (Vercel lo maneja automáticamente)
 
-1. En Railway, click en "New" → "Database" → "Add PostgreSQL"
-2. Railway creará automáticamente una base de datos PostgreSQL
-3. Copia la variable `DATABASE_URL` que Railway genera
+### 3. Base de Datos
 
-### 4. Configurar Variables de Entorno
+**Opción A: SQLite (simple, pero no persistente en Vercel)**
+- SQLite funcionará pero se reiniciará en cada deploy
+- Para producción, usa una de las opciones siguientes
 
-En Railway, ve a "Variables" y agrega:
+**Opción B: Railway (Recomendado)**
+1. Ve a [railway.app](https://railway.app)
+2. Crea un nuevo proyecto
+3. Agrega PostgreSQL
+4. Copia la `DATABASE_URL` de Railway
+5. Agrega `DATABASE_URL` a las variables de entorno en Vercel
+6. Actualiza `db/database.js` para usar PostgreSQL
+
+**Opción C: Supabase (Gratis)**
+1. Ve a [supabase.com](https://supabase.com)
+2. Crea un nuevo proyecto
+3. Copia la connection string
+4. Agrega `DATABASE_URL` a las variables de entorno en Vercel
+
+### 4. Configurar Dominio
+
+1. En Vercel, ve a Settings → Domains
+2. Agrega `trabajos.indies.cl` o `indies.cl/trabajos`
+3. En Cloudflare:
+   - Si usas subdominio: CNAME `trabajos` → `cname.vercel-dns.com`
+   - Si usas path: Configura un proxy o redirige
+
+### 5. Variables de Entorno en Vercel
 
 ```
 NODE_ENV=production
-PORT=3000
 ADMIN_PASSWORD=tu_contraseña_super_segura_aqui
-SESSION_SECRET=tu_secret_key_muy_larga_y_aleatoria_aqui
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-```
-
-### 5. Actualizar código para PostgreSQL
-
-El código ya está preparado para usar PostgreSQL si `DATABASE_URL` está configurado.
-
-### 6. Configurar Dominio
-
-1. En Railway, ve a "Settings" → "Networking"
-2. Click en "Generate Domain" o agrega tu dominio personalizado
-3. Para `indies.cl/trabajos`, configura un subdominio o path en tu DNS
-
-## Opción 2: Vercel + Railway DB
-
-### 1. Base de Datos en Railway
-- Sigue los pasos 3-4 de Railway arriba para crear la DB
-
-### 2. Desplegar en Vercel
-1. Ve a [vercel.com](https://vercel.com)
-2. Importa tu repositorio de GitHub
-3. Vercel detectará automáticamente la configuración
-4. Agrega las variables de entorno (sin DATABASE_URL, usa la de Railway)
-
-### 3. Configurar Dominio
-- En Vercel, ve a "Settings" → "Domains"
-- Agrega `trabajos.indies.cl` o configura el path en tu DNS
-
-## Configuración DNS para indies.cl/trabajos
-
-### Opción A: Subdominio (trabajos.indies.cl)
-```
-Type: CNAME
-Name: trabajos
-Value: [tu-dominio-de-railway].railway.app
-```
-
-### Opción B: Path (indies.cl/trabajos)
-Necesitarás configurar un reverse proxy en tu servidor principal de indies.cl
-
-## Variables de Entorno Requeridas
-
-```env
-NODE_ENV=production
+SESSION_SECRET=genera_una_clave_muy_larga_y_aleatoria_aqui
 PORT=3000
-ADMIN_PASSWORD=tu_contraseña_segura
-SESSION_SECRET=tu_secret_key_aleatoria_larga
-DATABASE_URL=postgresql://user:password@host:port/database
 ```
 
-## Post-Deploy Checklist
+### 6. Desplegar
 
-- [ ] Verificar que la base de datos se inicializa correctamente
-- [ ] Probar el login de admin
-- [ ] Probar crear un trabajo de prueba
-- [ ] Verificar que los trabajos se muestran correctamente
-- [ ] Probar el flujo completo de pago
-- [ ] Verificar que el iframe de Fintoc funciona
-- [ ] Probar aprobar un trabajo desde el admin
-- [ ] Verificar que los trabajos aprobados aparecen en el job board
+1. Vercel detectará automáticamente el `vercel.json`
+2. El despliegue se hará automáticamente en cada push a `main`
+3. Verifica que todo funcione en `https://indies.cl/trabajos`
 
-## Migración de Datos (si tienes datos en SQLite local)
+## 🔧 Troubleshooting
 
-Si tienes datos en SQLite que quieres migrar:
+- Si la BD no funciona, verifica las variables de entorno
+- Si el dominio no funciona, verifica DNS en Cloudflare
+- Revisa los logs en Vercel Dashboard
 
-```bash
-# Exportar datos de SQLite
-sqlite3 db/jobs.db .dump > backup.sql
+## 📝 Notas
 
-# Importar a PostgreSQL (ajusta la conexión)
-psql $DATABASE_URL < backup.sql
-```
-
-## Monitoreo
-
-- Railway: Dashboard muestra logs y métricas
-- Vercel: Analytics en el dashboard
-- Considera agregar Sentry para error tracking
-
-## Backup
-
-- Railway PostgreSQL: Backups automáticos diarios
-- Configura backups adicionales si es necesario
+- La BD SQLite se reiniciará en cada deploy en Vercel
+- Para producción, usa PostgreSQL en Railway o Supabase
+- El panel de admin está en `/admin.html`
+- El login está en `/login.html`
 
