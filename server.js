@@ -1,107 +1,106 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const path = require('path');
 require('dotenv').config();
 
+// Import modules
 const db = require('./db/database');
 const jobsRoutes = require('./routes/jobs');
 const adminRoutes = require('./routes/admin');
 const authRoutes = require('./routes/auth');
 const requireAuth = require('./middleware/auth');
 
-const app = express();
+// Constants
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // Allow inline scripts for simplicity
-}));
+// Create Express app
+const app = express();
 
-// Rate limiting
+// =============================================================================
+// SECURITY MIDDLEWARE
+// =============================================================================
+
+app.use(helmet({ contentSecurityPolicy: false }));
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 app.use('/api/', limiter);
 
-// Session configuration
-// For Vercel serverless, we need resave and saveUninitialized set to true
+// =============================================================================
+// SESSION CONFIGURATION
+// =============================================================================
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'simplemente-trabajos-secret-key-change-in-production',
-  resave: true, // Required for Vercel
-  saveUninitialized: true, // Required for Vercel
+  secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
+  resave: true,
+  saveUninitialized: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: IS_PRODUCTION,
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'lax', // Important for cross-site requests
-    domain: undefined // Let browser set domain automatically
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'lax'
   },
-  name: 'jobs.sid' // Custom session name
+  name: 'jobs.sid'
 }));
 
-// Middleware
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// =============================================================================
+// BODY PARSING & CORS
+// =============================================================================
 
-// Initialize database (non-blocking)
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// =============================================================================
+// DATABASE INITIALIZATION
+// =============================================================================
+
 let dbInitPromise = null;
 
-function ensureDbInitialized() {
+async function initDatabase() {
   if (!dbInitPromise) {
     dbInitPromise = db.init().catch(err => {
-      console.error('❌ Failed to initialize database:', err);
-      dbInitPromise = null; // Allow retry
+      console.error('❌ Database initialization failed:', err.message);
+      dbInitPromise = null;
       throw err;
     });
   }
   return dbInitPromise;
 }
 
-// Ensure all API responses are JSON
+// Middleware: ensure JSON responses for API
 app.use('/api', (req, res, next) => {
-  // Override res.json to ensure it always sets content-type
-  const originalJson = res.json;
-  res.json = function(data) {
+  const originalJson = res.json.bind(res);
+  res.json = (data) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return originalJson.call(this, data);
+    return originalJson(data);
   };
   next();
 });
 
-// Ensure DB is initialized before handling API requests (except auth routes)
+// Middleware: initialize DB for API routes (skip auth routes)
 app.use('/api', async (req, res, next) => {
-  // Skip database initialization for auth routes (they don't need DB)
-  if (req.path.startsWith('/auth')) {
-    return next();
-  }
+  if (req.path.startsWith('/auth')) return next();
   
   try {
-    await ensureDbInitialized();
+    await initDatabase();
     next();
   } catch (err) {
-    console.error('Database initialization error for path:', req.path);
-    console.error('Database initialization error:', err);
-    console.error('Database initialization error stack:', err.stack);
-    if (!res.headersSent) {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return res.status(500).json({ 
-        error: 'error de inicialización de base de datos',
-        details: process.env.NODE_ENV === 'development' ? err.message : undefined
-      });
-    }
+    console.error('Database error:', err.message);
+    res.status(500).json({ error: 'error de base de datos' });
   }
 });
 
-// Serve static files
+// =============================================================================
+// STATIC FILES & ROUTES
+// =============================================================================
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes
@@ -114,71 +113,43 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-
-// Serve admin.html (will be protected by client-side auth check)
-app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// Serve login.html
-app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// Serve static files explicitly
-app.get('/trabajos', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Serve index.html for all other routes (SPA)
+// SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Global error handler - must be last
+// =============================================================================
+// ERROR HANDLING
+// =============================================================================
+
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
-  console.error('Error stack:', err.stack);
+  console.error('Error:', err.message);
   
-  // If response already sent, delegate to default handler
-  if (res.headersSent) {
-    return next(err);
-  }
+  if (res.headersSent) return next(err);
   
-  // Always return JSON for API routes
-  if (req.path.startsWith('/api')) {
-    return res.status(err.status || 500).json({
-      error: err.message || 'error interno del servidor',
-      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
-  }
+  const status = err.status || 500;
+  const message = err.message || 'error interno del servidor';
   
-  // For non-API routes, send error page or redirect
-  res.status(err.status || 500).json({
-    error: err.message || 'error interno del servidor'
-  });
+  res.status(status).json({ error: message });
 });
 
-// Initialize database on startup (non-blocking)
-ensureDbInitialized().then(() => {
-  console.log(`✅ Database initialized`);
-}).catch(err => {
-  console.error('⚠️  Database initialization failed, will retry on first request:', err);
-});
+// =============================================================================
+// SERVER STARTUP
+// =============================================================================
 
-// For local development, start server
+initDatabase()
+  .then(() => console.log('✅ Database ready'))
+  .catch(err => console.error('⚠️ Database will init on first request'));
+
 if (!process.env.VERCEL) {
-  ensureDbInitialized().then(() => {
+  initDatabase().then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
   }).catch(err => {
-    console.error('❌ Failed to start server:', err);
+    console.error('❌ Failed to start:', err.message);
     process.exit(1);
   });
 }
 
-// Export for Vercel
 module.exports = app;
-

@@ -1,11 +1,13 @@
-// Middleware to check if user is authenticated
+/**
+ * Authentication middleware
+ * Protects admin routes
+ */
+
 function requireAuth(req, res, next) {
-  if (req.session && req.session.isAuthenticated) {
+  if (req.session?.isAuthenticated) {
     return next();
-  } else {
-    return res.status(401).json({ error: 'no autorizado. por favor inicia sesión.' });
   }
+  res.status(401).json({ error: 'no autorizado' });
 }
 
 module.exports = requireAuth;
-

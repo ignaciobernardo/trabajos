@@ -1,221 +1,178 @@
-// Use PostgreSQL if DATABASE_URL is set, otherwise use SQLite
-let db = null;
-let pgDb = null;
+/**
+ * Database abstraction layer
+ * Supports SQLite (development) and PostgreSQL (production)
+ */
 
-// Try to load PostgreSQL
-try {
-  if (process.env.DATABASE_URL) {
-    const pg = require('./database-pg');
-    pgDb = pg;
-    console.log('📊 Using PostgreSQL database');
-  }
-} catch (e) {
-  console.log('⚠️  PostgreSQL not available, using SQLite');
-}
-
-// SQLite fallback
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+
+// Configuration
 const DB_PATH = path.join(__dirname, 'jobs.db');
+const USE_POSTGRES = !!process.env.DATABASE_URL;
+
+// Database instances
+let sqliteDb = null;
+let pgPool = null;
+
+// =============================================================================
+// DATABASE CONNECTION
+// =============================================================================
 
 function getDb() {
-  // Use PostgreSQL if available
-  if (pgDb && process.env.DATABASE_URL) {
-    return pgDb.getDb();
+  if (USE_POSTGRES) {
+    if (!pgPool) {
+      const { Pool } = require('pg');
+      pgPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+      });
+    }
+    return pgPool;
   }
   
-  // Otherwise use SQLite
-  if (!db) {
-    db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) {
-        console.error('Error opening database:', err);
-      }
+  if (!sqliteDb) {
+    sqliteDb = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) console.error('SQLite connection error:', err.message);
     });
   }
-  return db;
+  return sqliteDb;
 }
 
-function init() {
-  // Use PostgreSQL if available
-  if (pgDb && process.env.DATABASE_URL) {
-    console.log('📊 Attempting to initialize PostgreSQL...');
-    return pgDb.init().catch(err => {
-      console.error('❌ PostgreSQL initialization failed:', err);
-      console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'SET (length: ' + process.env.DATABASE_URL.length + ')' : 'NOT SET');
-      throw err;
-    });
-  }
-  
-  // Otherwise use SQLite
-  console.log('📊 Attempting to initialize SQLite...');
-  return new Promise((resolve, reject) => {
-    const database = getDb();
-    
-    if (!database) {
-      const error = new Error('Failed to get database instance');
-      console.error('❌ SQLite getDb() returned null');
-      reject(error);
-      return;
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+async function init() {
+  const createTableSQL = `
+    CREATE TABLE IF NOT EXISTS jobs (
+      id ${USE_POSTGRES ? 'SERIAL' : 'INTEGER'} PRIMARY KEY ${USE_POSTGRES ? '' : 'AUTOINCREMENT'},
+      company_name TEXT NOT NULL,
+      company_website TEXT NOT NULL,
+      company_logo TEXT,
+      job_title TEXT NOT NULL,
+      job_location TEXT NOT NULL,
+      job_type TEXT NOT NULL,
+      experience_level TEXT NOT NULL,
+      remote_onsite TEXT NOT NULL,
+      compensation TEXT NOT NULL,
+      team TEXT NOT NULL,
+      application_link TEXT NOT NULL,
+      submitter_name TEXT NOT NULL,
+      submitter_email TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      payment_status TEXT DEFAULT 'pending',
+      payment_intent_id TEXT,
+      created_at ${USE_POSTGRES ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      expires_at ${USE_POSTGRES ? 'TIMESTAMP' : 'DATETIME'},
+      approved_at ${USE_POSTGRES ? 'TIMESTAMP' : 'DATETIME'}
+    )
+  `;
+
+  const createIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_team_status ON jobs(team, status)',
+    'CREATE INDEX IF NOT EXISTS idx_expires_at ON jobs(expires_at)'
+  ];
+
+  if (USE_POSTGRES) {
+    const db = getDb();
+    await db.query('SELECT NOW()'); // Test connection
+    await db.query(createTableSQL);
+    for (const idx of createIndexes) {
+      await db.query(idx);
     }
-    
-    database.serialize(() => {
-      // Jobs table
-      database.run(`
-        CREATE TABLE IF NOT EXISTS jobs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          company_name TEXT NOT NULL,
-          company_website TEXT NOT NULL,
-          company_logo TEXT,
-          job_title TEXT NOT NULL,
-          job_location TEXT NOT NULL,
-          job_type TEXT NOT NULL,
-          experience_level TEXT NOT NULL,
-          remote_onsite TEXT NOT NULL,
-          compensation TEXT NOT NULL,
-          team TEXT NOT NULL,
-          application_link TEXT NOT NULL,
-          submitter_name TEXT NOT NULL,
-          submitter_email TEXT NOT NULL,
-          status TEXT DEFAULT 'pending',
-          payment_status TEXT DEFAULT 'pending',
-          payment_intent_id TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          expires_at DATETIME,
-          approved_at DATETIME
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating jobs table:', err);
-          reject(err);
-          return;
-        }
-        
-        // Create index for faster queries
-        database.run(`
-          CREATE INDEX IF NOT EXISTS idx_team_status ON jobs(team, status)
-        `, (err) => {
-          if (err) {
-            console.error('Error creating index:', err);
-          }
+    console.log('✅ PostgreSQL initialized');
+  } else {
+    return new Promise((resolve, reject) => {
+      const db = getDb();
+      db.serialize(() => {
+        db.run(createTableSQL, (err) => {
+          if (err) return reject(err);
+          createIndexes.forEach(idx => db.run(idx));
+          console.log('✅ SQLite initialized');
+          resolve();
         });
-        
-        database.run(`
-          CREATE INDEX IF NOT EXISTS idx_expires_at ON jobs(expires_at)
-        `, (err) => {
-          if (err) {
-            console.error('Error creating index:', err);
-          }
-        });
-        
-        console.log('✅ Database initialized successfully');
-        resolve();
       });
     });
-  });
+  }
 }
 
-function close() {
-  // Use PostgreSQL if available
-  if (pgDb && process.env.DATABASE_URL) {
-    return pgDb.close();
+// =============================================================================
+// QUERY ABSTRACTION
+// =============================================================================
+
+async function query(sql, params = []) {
+  const db = getDb();
+  
+  if (USE_POSTGRES) {
+    const result = await db.query(sql, params);
+    return {
+      rows: result.rows || [],
+      lastID: result.rows?.[0]?.id || null,
+      changes: result.rowCount || 0
+    };
   }
   
-  // Otherwise use SQLite
   return new Promise((resolve, reject) => {
-    if (db) {
-      db.close((err) => {
-        if (err) {
-          reject(err);
-        } else {
-          db = null;
-          resolve();
-        }
+    const isSelect = sql.trim().toUpperCase().startsWith('SELECT');
+    
+    if (isSelect) {
+      db.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve({ rows: rows || [], lastID: null, changes: rows?.length || 0 });
       });
     } else {
-      resolve();
+      db.run(sql, params, function(err) {
+        if (err) reject(err);
+        else resolve({ rows: [], lastID: this.lastID, changes: this.changes });
+      });
     }
   });
 }
 
-// Helper functions to abstract SQLite vs PostgreSQL differences
-function isPostgreSQL() {
-  return pgDb && process.env.DATABASE_URL;
-}
-
-// Execute a query (works for both SQLite and PostgreSQL)
-async function query(sql, params = []) {
-  const database = getDb();
-  
-  if (isPostgreSQL()) {
-    // PostgreSQL uses promises
-    try {
-      const result = await database.query(sql, params);
-      // For INSERT with RETURNING, rows will contain the returned data
-      // For regular INSERT/UPDATE/DELETE, rowCount is the number of affected rows
-      return {
-        rows: result.rows || [],
-        lastID: result.rows && result.rows[0] ? result.rows[0].id : null,
-        changes: result.rowCount || 0
-      };
-    } catch (err) {
-      console.error('PostgreSQL query error:', err);
-      console.error('SQL:', sql);
-      console.error('Params:', params);
-      throw err;
-    }
-  } else {
-    // SQLite uses callbacks, convert to promise
-    return new Promise((resolve, reject) => {
-      // Check if it's a SELECT query
-      const sqlUpper = sql.trim().toUpperCase();
-      const isSelect = sqlUpper.startsWith('SELECT');
-      
-      if (isSelect) {
-        database.all(sql, params, (err, rows) => {
-          if (err) {
-            console.error('SQLite SELECT error:', err);
-            console.error('SQL:', sql);
-            console.error('Params:', params);
-            reject(err);
-          } else {
-            resolve({ rows: rows || [], lastID: null, changes: rows ? rows.length : 0 });
-          }
-        });
-      } else {
-        // For INSERT/UPDATE/DELETE, use run
-        database.run(sql, params, function(err) {
-          if (err) {
-            console.error('SQLite INSERT/UPDATE/DELETE error:', err);
-            console.error('SQL:', sql);
-            console.error('Params:', params);
-            reject(err);
-          } else {
-            resolve({
-              rows: [],
-              lastID: this.lastID,
-              changes: this.changes
-            });
-          }
-        });
-      }
-    });
-  }
-}
-
-// Get a single row (works for both SQLite and PostgreSQL)
 async function get(sql, params = []) {
-  const database = getDb();
-  
-  if (isPostgreSQL()) {
-    const result = await database.query(sql, params);
+  if (USE_POSTGRES) {
+    const db = getDb();
+    const result = await db.query(sql, params);
     return result.rows[0] || null;
-  } else {
+  }
+  
+  return new Promise((resolve, reject) => {
+    getDb().get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row || null);
+    });
+  });
+}
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+
+function isPostgreSQL() {
+  return USE_POSTGRES;
+}
+
+function placeholder(index) {
+  return USE_POSTGRES ? `$${index}` : '?';
+}
+
+function formatDate(date) {
+  return USE_POSTGRES 
+    ? date.toISOString() 
+    : date.toISOString().replace('T', ' ').substring(0, 19);
+}
+
+async function close() {
+  if (USE_POSTGRES && pgPool) {
+    await pgPool.end();
+    pgPool = null;
+  } else if (sqliteDb) {
     return new Promise((resolve, reject) => {
-      database.get(sql, params, (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
+      sqliteDb.close((err) => {
+        if (err) reject(err);
+        else {
+          sqliteDb = null;
+          resolve();
         }
       });
     });
@@ -225,9 +182,10 @@ async function get(sql, params = []) {
 module.exports = {
   getDb,
   init,
-  close,
   query,
   get,
-  isPostgreSQL
+  close,
+  isPostgreSQL,
+  placeholder,
+  formatDate
 };
-
