@@ -77,12 +77,18 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Ensure DB is initialized before handling API requests
+// Ensure DB is initialized before handling API requests (except auth routes)
 app.use('/api', async (req, res, next) => {
+  // Skip database initialization for auth routes (they don't need DB)
+  if (req.path.startsWith('/auth')) {
+    return next();
+  }
+  
   try {
     await ensureDbInitialized();
     next();
   } catch (err) {
+    console.error('Database initialization error for path:', req.path);
     console.error('Database initialization error:', err);
     console.error('Database initialization error stack:', err.stack);
     if (!res.headersSent) {

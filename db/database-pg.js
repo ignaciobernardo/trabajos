@@ -23,13 +23,21 @@ async function init() {
     return Promise.resolve();
   }
 
+  console.log('📊 Connecting to PostgreSQL...');
   const database = getDb();
   if (!database) {
+    console.error('❌ Failed to create database connection - getDb() returned null');
     throw new Error('Failed to create database connection');
   }
 
   try {
+    // Test connection first
+    console.log('📊 Testing PostgreSQL connection...');
+    await database.query('SELECT NOW()');
+    console.log('✅ PostgreSQL connection successful');
+    
     // Create jobs table
+    console.log('📊 Creating jobs table...');
     await database.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id SERIAL PRIMARY KEY,
@@ -67,7 +75,10 @@ async function init() {
     console.log('✅ PostgreSQL database initialized successfully');
     return Promise.resolve();
   } catch (error) {
-    console.error('Error initializing PostgreSQL database:', error);
+    console.error('❌ Error initializing PostgreSQL database:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error stack:', error.stack);
     throw error;
   }
 }

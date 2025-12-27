@@ -38,12 +38,25 @@ function getDb() {
 function init() {
   // Use PostgreSQL if available
   if (pgDb && process.env.DATABASE_URL) {
-    return pgDb.init();
+    console.log('📊 Attempting to initialize PostgreSQL...');
+    return pgDb.init().catch(err => {
+      console.error('❌ PostgreSQL initialization failed:', err);
+      console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'SET (length: ' + process.env.DATABASE_URL.length + ')' : 'NOT SET');
+      throw err;
+    });
   }
   
   // Otherwise use SQLite
+  console.log('📊 Attempting to initialize SQLite...');
   return new Promise((resolve, reject) => {
     const database = getDb();
+    
+    if (!database) {
+      const error = new Error('Failed to get database instance');
+      console.error('❌ SQLite getDb() returned null');
+      reject(error);
+      return;
+    }
     
     database.serialize(() => {
       // Jobs table
