@@ -1,12 +1,30 @@
+// Use PostgreSQL if DATABASE_URL is set, otherwise use SQLite
+let db = null;
+let pgDb = null;
+
+// Try to load PostgreSQL
+try {
+  if (process.env.DATABASE_URL) {
+    const pg = require('./database-pg');
+    pgDb = pg;
+    console.log('📊 Using PostgreSQL database');
+  }
+} catch (e) {
+  console.log('⚠️  PostgreSQL not available, using SQLite');
+}
+
+// SQLite fallback
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const fs = require('fs');
-
 const DB_PATH = path.join(__dirname, 'jobs.db');
 
-let db = null;
-
 function getDb() {
+  // Use PostgreSQL if available
+  if (pgDb && process.env.DATABASE_URL) {
+    return pgDb.getDb();
+  }
+  
+  // Otherwise use SQLite
   if (!db) {
     db = new sqlite3.Database(DB_PATH, (err) => {
       if (err) {
@@ -18,6 +36,12 @@ function getDb() {
 }
 
 function init() {
+  // Use PostgreSQL if available
+  if (pgDb && process.env.DATABASE_URL) {
+    return pgDb.init();
+  }
+  
+  // Otherwise use SQLite
   return new Promise((resolve, reject) => {
     const database = getDb();
     
@@ -78,6 +102,12 @@ function init() {
 }
 
 function close() {
+  // Use PostgreSQL if available
+  if (pgDb && process.env.DATABASE_URL) {
+    return pgDb.close();
+  }
+  
+  // Otherwise use SQLite
   return new Promise((resolve, reject) => {
     if (db) {
       db.close((err) => {
