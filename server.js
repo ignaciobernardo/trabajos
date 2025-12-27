@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 require('dotenv').config();
 
@@ -16,6 +16,7 @@ const requireAuth = require('./middleware/auth');
 // Constants
 const PORT = process.env.PORT || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const COOKIE_SECRET = process.env.SESSION_SECRET || 'change-this-secret-in-production';
 
 // Create Express app
 const app = express();
@@ -33,29 +34,13 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // =============================================================================
-// SESSION CONFIGURATION
-// =============================================================================
-
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
-  resave: true,
-  saveUninitialized: true,
-  cookie: {
-    secure: IS_PRODUCTION,
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
-    sameSite: 'lax'
-  },
-  name: 'jobs.sid'
-}));
-
-// =============================================================================
-// BODY PARSING & CORS
+// BODY PARSING, COOKIES & CORS
 // =============================================================================
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser(COOKIE_SECRET));
 
 // =============================================================================
 // DATABASE INITIALIZATION
