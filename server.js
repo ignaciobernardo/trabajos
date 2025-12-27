@@ -82,16 +82,51 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Initialize database and start server
-db.init().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+// Initialize database (non-blocking)
+let dbInitPromise = null;
+
+function ensureDbInitialized() {
+  if (!dbInitPromise) {
+    dbInitPromise = db.init().catch(err => {
+      console.error('❌ Failed to initialize database:', err);
+      dbInitPromise = null; // Allow retry
+      throw err;
+    });
+  }
+  return dbInitPromise;
+}
+
+// Initialize database on startup (non-blocking)
+ensureDbInitialized().then(() => {
+  console.log(`✅ Database initialized`);
 }).catch(err => {
-  console.error('❌ Failed to initialize database:', err);
-  process.exit(1);
+  console.error('⚠️  Database initialization failed, will retry on first request:', err);
 });
 
+// For local development, start server
+if (!process.env.VERCEL) {
+  ensureDbInitialized().then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  }).catch(err => {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+// Ensure DB is initialized before handling requests
+app.use(async (req, res, next) => {
+  try {
+    await ensureDbInitialized();
+    next();
+  } catch (err) {
+    console.error('Database initialization error:', err);
+    res.status(500).json({ error: 'Database initialization failed' });
+  }
+});
+
+// Export for Vercel
 module.exports = app;
 
